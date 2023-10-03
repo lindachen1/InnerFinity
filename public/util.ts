@@ -60,10 +60,22 @@ const operations: operation[] = [
     fields: { author: "input" },
   },
   {
-    name: "Create Post",
+    name: "Get Accessable Posts",
+    endpoint: "/api/accessablePosts",
+    method: "GET",
+    fields: {},
+  },
+  {
+    name: "Get Shared Resources",
+    endpoint: "/api/sharedResources",
+    method: "GET",
+    fields: {},
+  },
+  {
+    name: "Create Post (Y/N for allowRequests)",
     endpoint: "/api/posts",
     method: "POST",
-    fields: { content: "input" },
+    fields: { content: "input", allowRequests: "input" },
   },
   {
     name: "Update Post",
@@ -72,10 +84,58 @@ const operations: operation[] = [
     fields: { id: "input", update: { content: "input", options: { backgroundColor: "input" } } },
   },
   {
+    name: "Request access to Resource",
+    endpoint: "/api/posts/:id/requests",
+    method: "POST",
+    fields: { id: "input" },
+  },
+  {
+    name: "Add access to Resource",
+    endpoint: "/api/posts/:id/members",
+    method: "POST",
+    fields: { id: "input", user: "input" },
+  },
+  {
+    name: "Remove access to Resource",
+    endpoint: "/api/posts/:id/members",
+    method: "DELETE",
+    fields: { id: "input", user: "input" },
+  },
+  {
     name: "Delete Post",
     endpoint: "/api/posts/:id",
     method: "DELETE",
     fields: { id: "input" },
+  },
+  {
+    name: "Create Group",
+    endpoint: "/api/groups",
+    method: "POST",
+    fields: { name: "input" },
+  },
+  {
+    name: "Edit Group Name",
+    endpoint: "/api/groups/:id",
+    method: "PATCH",
+    fields: { id: "input", name: "input" },
+  },
+  {
+    name: "Add to Group",
+    endpoint: "/api/groups/:id/members",
+    method: "POST",
+    fields: { id: "input", user: "input" },
+  },
+  {
+    name: "Remove from Group",
+    endpoint: "/api/groups/:id/members",
+    method: "DELETE",
+    fields: { id: "input", user: "input" },
+  },
+  {
+    name: "Get Groups",
+    endpoint: "/api/groups",
+    method: "GET",
+    fields: {},
   },
 ];
 

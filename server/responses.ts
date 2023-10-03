@@ -1,6 +1,8 @@
 import { User } from "./app";
 import { AlreadyFriendsError, FriendNotFoundError, FriendRequestAlreadyExistsError, FriendRequestDoc, FriendRequestNotFoundError } from "./concepts/friend";
+import { GroupDoc } from "./concepts/group";
 import { PostAuthorNotMatchError, PostDoc } from "./concepts/post";
+import { SharingDoc } from "./concepts/sharing";
 import { Router } from "./framework/router";
 
 /**
@@ -17,6 +19,50 @@ export default class Responses {
     }
     const author = await User.getUserById(post.author);
     return { ...post, author: author.username };
+  }
+
+  /**
+   * Convert SharingDoc into more readable format for the frontend by converting the user ids into a username.
+   */
+  static async sharedResource(sharedResource: SharingDoc | null) {
+    if (!sharedResource) {
+      return sharedResource;
+    }
+    const owner = await User.getUserById(sharedResource.owner);
+    const requested = await User.idsToUsernames(sharedResource.requestedAccess);
+    const withAccess = await User.idsToUsernames(sharedResource.withAccess);
+    return { ...sharedResource, owner: owner.username, requestedAccess: requested, withAccess: withAccess };
+  }
+
+  /**
+   * Same as {@link sharedResource} but for an array of SharingDoc for improved performance.
+   */
+  static async sharedResources(sharedResources: SharingDoc[]) {
+    const owners = await User.idsToUsernames(sharedResources.map((resource) => resource.owner));
+    const requested = await Promise.all(sharedResources.map(async (resource) => await User.idsToUsernames(resource.requestedAccess)));
+    const withAccess = await Promise.all(sharedResources.map(async (resource) => await User.idsToUsernames(resource.withAccess)));
+    return sharedResources.map((resource, i) => ({ ...resource, owner: owners[i], requestedAccess: requested[i], withAccess: withAccess[i] }));
+  }
+
+  /**
+   * Convert GroupDoc into more readable format for the frontend by converting the creator and members id into a username.
+   */
+  static async group(group: GroupDoc | null) {
+    if (!group) {
+      return group;
+    }
+    const creator = await User.getUserById(group.creator);
+    const members = await User.idsToUsernames(group.members);
+    return { ...group, creator: creator.username, members: members };
+  }
+
+  /**
+   * Same as {@link group} but for an array of GroupDoc for improved performance.
+   */
+  static async groups(groups: GroupDoc[]) {
+    const creators = await User.idsToUsernames(groups.map((group) => group.creator));
+    const members = await Promise.all(groups.map(async (group) => await User.idsToUsernames(group.members)));
+    return groups.map((group, i) => ({ ...group, creator: creators[i], members: members[i] }));
   }
 
   /**
