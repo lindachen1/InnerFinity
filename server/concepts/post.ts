@@ -101,6 +101,11 @@ export default class PostConcept {
     return { msg: "Post deleted successfully!" };
   }
 
+  async deleteMany(filter: Filter<PostDoc>) {
+    await this.publishedPosts.deleteMany(filter);
+    return { msg: "Posts deleted successfully!" };
+  }
+
   async isAuthor(user: ObjectId, _id: ObjectId) {
     const post = (await this.publishedPosts.readOne({ _id })) ?? (await this.pendingPosts.readOne({ _id }));
     if (!post) {

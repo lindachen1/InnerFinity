@@ -46,6 +46,11 @@ export default class UserConcept {
     return ids.map((id) => idToUser.get(id.toString())?.username ?? "DELETED_USER");
   }
 
+  async usernamesToIds(usernames: string[]) {
+    const users = await this.users.readMany({ username: { $in: usernames } });
+    return users.map((user) => user._id);
+  }
+
   async getUsers(username?: string) {
     // If username is undefined, return all users by applying empty filter
     const filter = username ? { username } : {};

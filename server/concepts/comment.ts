@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import DocCollection, { BaseDoc } from "../framework/doc";
+import { NotAllowedError, NotFoundError } from "./errors";
 
 export interface CommentDoc extends BaseDoc {
   author: ObjectId;
@@ -18,5 +19,20 @@ export default class CommentConcept {
   async getCommentsByTarget(targetId: ObjectId) {
     const comments = await this.comments.readMany({ target: targetId }, { sort: { dateUpdated: -1 } });
     return comments;
+  }
+
+  async delete(_id: ObjectId) {
+    await this.comments.deleteOne({ _id });
+    return { msg: "Comment successfully deleted!" };
+  }
+
+  async isAuthor(_id: ObjectId, user: ObjectId) {
+    const comment = await this.comments.readOne({ _id });
+    if (!comment) {
+      throw new NotFoundError(`Comment ${_id} does not exist!`);
+    }
+    if (comment.author.toString() !== user.toString()) {
+      throw new NotAllowedError(`${user} is not the author of comment ${_id}!`);
+    }
   }
 }

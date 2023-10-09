@@ -78,13 +78,14 @@ class Routes {
   }
 
   @Router.post("/posts")
-  async createPost(session: WebSessionDoc, content: string, allowRequests: string, options?: PostOptions) {
+  async createPost(session: WebSessionDoc, content: string, allowRequests: string, shareWith: Array<string>, options?: PostOptions) {
     const user = WebSession.getUser(session);
     const created = await UserPost.create(user, content, [], options);
     if (!created.post) {
       throw new Error("Post did not create successfully.");
     }
-    await PostSharing.limitSharing(user, created.post._id, allowRequests === "Y", []);
+    const membersId = await User.usernamesToIds(shareWith);
+    await PostSharing.limitSharing(user, created.post._id, allowRequests === "Y", membersId);
     return { msg: created.msg, post: await Responses.post(created.post) };
   }
 
@@ -182,9 +183,10 @@ class Routes {
   }
 
   @Router.post("/groups")
-  async createGroup(session: WebSessionDoc, name: string) {
+  async createGroup(session: WebSessionDoc, name: string, members: Array<string>) {
     const creator = WebSession.getUser(session);
-    const created = await Group.createGroup(name, creator);
+    const membersId = await User.usernamesToIds(members);
+    const created = await Group.createGroup(name, creator, membersId);
     return { msg: created.msg, group: await Responses.group(created.group) };
   }
 
@@ -209,11 +211,25 @@ class Routes {
     return await Group.removeFromGroup(_id, (await User.getUserByUsername(user))._id);
   }
 
-  @Router.get("/sharedResources")
-  async getSharedResources() {
-    const resources = await PostSharing.getSharedResources({});
-    return Responses.sharedResources(resources);
+  async leaveGroup(session: WebSessionDoc, _id: ObjectId) {
+    const user = WebSession.getUser(session);
+    await Group.isMember(user, _id);
+    return await Group.removeFromGroup(_id, user);
   }
+
+  @Router.delete("/groups/:_id")
+  async deleteGroup(session: WebSessionDoc, _id: ObjectId) {
+    const creator = WebSession.getUser(session);
+    await Group.isCreator(creator, _id);
+    await Group.deleteGroup(_id);
+    await GroupPost.deleteMany({ author: _id });
+  }
+
+  // @Router.get("/sharedResources")
+  // async getSharedResources() {
+  //   const resources = await PostSharing.getSharedResources({});
+  //   return Responses.sharedResources(resources);
+  // }
 
   @Router.post("/posts/:_id/requests")
   async requestAccess(session: WebSessionDoc, _id: ObjectId) {
@@ -223,7 +239,6 @@ class Routes {
 
   @Router.post("/posts/:_id/members")
   async addAccess(session: WebSessionDoc, _id: ObjectId, user: string) {
-    console.log("running");
     const userID = (await User.getUserByUsername(user))._id;
     const owner = WebSession.getUser(session);
     await PostSharing.isOwner(owner, _id);

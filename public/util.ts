@@ -1,5 +1,5 @@
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
-type InputTag = "input" | "textarea";
+type InputTag = "input" | "textarea" | "json";
 type Field = InputTag | { [key: string]: Field };
 type Fields = Record<string, Field>;
 
@@ -66,16 +66,10 @@ const operations: operation[] = [
     fields: {},
   },
   {
-    name: "Get Shared Resources",
-    endpoint: "/api/sharedResources",
-    method: "GET",
-    fields: {},
-  },
-  {
     name: "Create Post (Y/N for allowRequests)",
     endpoint: "/api/posts",
     method: "POST",
-    fields: { content: "input", allowRequests: "input" },
+    fields: { content: "input", allowRequests: "input", shareWith: "json" },
   },
   {
     name: "Update Post",
@@ -111,7 +105,7 @@ const operations: operation[] = [
     name: "Create Group",
     endpoint: "/api/groups",
     method: "POST",
-    fields: { name: "input" },
+    fields: { name: "input", members: "json" },
   },
   {
     name: "Edit Group Name",
@@ -179,10 +173,11 @@ async function request(method: HttpMethod, endpoint: string, params?: unknown) {
 function fieldsToHtml(fields: Record<string, Field>, indent = 0, prefix = ""): string {
   return Object.entries(fields)
     .map(([name, tag]) => {
+      const htmlTag = tag === "json" ? "textarea" : tag;
       return `
         <div class="field" style="margin-left: ${indent}px">
           <label>${name}:
-          ${typeof tag === "string" ? `<${tag} name="${prefix}${name}"></${tag}>` : fieldsToHtml(tag, indent + 10, prefix + name + ".")}
+          ${typeof tag === "string" ? `<${htmlTag} name="${prefix}${name}"></${htmlTag}>` : fieldsToHtml(tag, indent + 10, prefix + name + ".")}
           </label>
         </div>`;
     })
@@ -234,6 +229,20 @@ async function submitEventHandler(e: Event) {
     delete reqData[key];
     return param;
   });
+
+  const op = operations.find((op) => op.endpoint === $endpoint && op.method === $method);
+  const pairs = Object.entries(reqData);
+  for (const [key, val] of pairs) {
+    if (val === "") {
+      delete reqData[key];
+      continue;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const type = key.split(".").reduce((obj, key) => obj[key], op?.fields as any);
+    if (type === "json") {
+      reqData[key] = JSON.parse(val as string);
+    }
+  }
 
   const data = prefixedRecordIntoObject(reqData as Record<string, string>);
 

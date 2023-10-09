@@ -56,6 +56,11 @@ export default class GroupConcept {
     return group.members;
   }
 
+  async deleteGroup(_id: ObjectId) {
+    await this.groups.deleteOne({ _id });
+    return { msg: "Group deleted successfully!" };
+  }
+
   async isMember(user: ObjectId, _id: ObjectId) {
     const group = await this.groups.readOne({ _id });
     if (!group) {
