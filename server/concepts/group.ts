@@ -1,5 +1,6 @@
 import { Filter, ObjectId } from "mongodb";
 import DocCollection, { BaseDoc } from "../framework/doc";
+import { includes } from "../framework/utils";
 import { NotAllowedError, NotFoundError } from "./errors";
 
 export interface GroupDoc extends BaseDoc {
@@ -11,8 +12,10 @@ export interface GroupDoc extends BaseDoc {
 export default class GroupConcept {
   public readonly groups = new DocCollection<GroupDoc>("groups");
 
-  async createGroup(name: string, creator: ObjectId) {
-    const members = [creator];
+  async createGroup(name: string, creator: ObjectId, members: Array<ObjectId>) {
+    if (!includes(members, creator)) {
+      members.push(creator);
+    }
     const _id = await this.groups.createOne({ name, creator, members });
     return { msg: "Group successfully created!", group: await this.groups.readOne({ _id }) };
   }
@@ -45,6 +48,24 @@ export default class GroupConcept {
     return groups;
   }
 
+  async getMembers(_id: ObjectId) {
+    const group = await this.groups.readOne({ _id });
+    if (group === null) {
+      throw new GroupNotFoundError(_id);
+    }
+    return group.members;
+  }
+
+  async isMember(user: ObjectId, _id: ObjectId) {
+    const group = await this.groups.readOne({ _id });
+    if (!group) {
+      throw new GroupNotFoundError(_id);
+    }
+    if (!group.members.map((member) => member.toString()).includes(user.toString())) {
+      throw new GroupNotMemberError(user, _id);
+    }
+  }
+
   async isCreator(user: ObjectId, _id: ObjectId) {
     const group = await this.groups.readOne({ _id });
     if (!group) {
@@ -59,6 +80,15 @@ export default class GroupConcept {
 export class GroupNotFoundError extends NotFoundError {
   constructor(public readonly group: ObjectId) {
     super("Group {0} does not exist!", group);
+  }
+}
+
+export class GroupNotMemberError extends NotAllowedError {
+  constructor(
+    public readonly user: ObjectId,
+    public readonly _id: ObjectId,
+  ) {
+    super("{0} is not a member of group {1}!", user, _id);
   }
 }
 

@@ -2,8 +2,8 @@ import { ObjectId } from "mongodb";
 
 import { Router, getExpressRouter } from "./framework/router";
 
-import { Friend, Group, PostSharing, User, UserPost, WebSession } from "./app";
-import { PostDoc, PostOptions } from "./concepts/post";
+import { Friend, Group, GroupPost, PostSharing, User, UserPost, WebSession } from "./app";
+import { PostOptions } from "./concepts/post";
 import { UserDoc } from "./concepts/user";
 import { WebSessionDoc } from "./concepts/websession";
 import Responses from "./responses";
@@ -80,20 +80,43 @@ class Routes {
   @Router.post("/posts")
   async createPost(session: WebSessionDoc, content: string, allowRequests: string, options?: PostOptions) {
     const user = WebSession.getUser(session);
-    const created = await UserPost.create(user, content, options);
-    if (created.post === null) {
-      throw new Error("Post did not return successfully.");
+    const created = await UserPost.create(user, content, [], options);
+    if (!created.post) {
+      throw new Error("Post did not create successfully.");
     }
-    await PostSharing.limitSharing(user, created.post._id, allowRequests === "Y");
+    await PostSharing.limitSharing(user, created.post._id, allowRequests === "Y", []);
     return { msg: created.msg, post: await Responses.post(created.post) };
   }
 
-  @Router.patch("/posts/:_id")
-  async updatePost(session: WebSessionDoc, _id: ObjectId, update: Partial<PostDoc>) {
+  @Router.post("/posts/groupPost")
+  async createGroupPost(session: WebSessionDoc, content: string, group: ObjectId, options?: PostOptions) {
     const user = WebSession.getUser(session);
-    await UserPost.isAuthor(user, _id);
-    return await UserPost.update(_id, update);
+    await Group.isMember(user, group);
+    const requiresApproval = await Group.getMembers(group);
+    const created = await GroupPost.create(group, content, requiresApproval, options);
+    if (!created) {
+      throw new Error("Post did not create successfully.");
+    }
+    return created;
   }
+
+  @Router.put("/posts/groupPost/approve")
+  async approveGroupPost(session: WebSessionDoc, _id: ObjectId) {
+    const user = WebSession.getUser(session);
+    const result = await GroupPost.approvePost(_id, user);
+    if (result.post) {
+      return { msg: "Post approved and published!", post: await Responses.post(result.post) };
+    } else {
+      return { msg: "Post approved, still pending other users' approval" };
+    }
+  }
+
+  // @Router.patch("/posts/:_id")
+  // async updatePost(session: WebSessionDoc, _id: ObjectId, update: Partial<PostDoc>) {
+  //   const user = WebSession.getUser(session);
+  //   await UserPost.isAuthor(user, _id);
+  //   return await UserPost.update(_id, update);
+  // }
 
   @Router.delete("/posts/:_id")
   async deletePost(session: WebSessionDoc, _id: ObjectId) {
@@ -186,8 +209,6 @@ class Routes {
     return await Group.removeFromGroup(_id, (await User.getUserByUsername(user))._id);
   }
 
-  //@Router.post("/groups/:_id/requests")
-
   @Router.get("/sharedResources")
   async getSharedResources() {
     const resources = await PostSharing.getSharedResources({});
@@ -217,14 +238,12 @@ class Routes {
     return await PostSharing.removeAccess(_id, userID);
   }
 
+  // @Router.post("/groups/:_id/requests")
+
   // @Router.get("/profiles/:_id")
   // async getProfile(session: WebSessionDoc, _id: ObjectId) {
   //   throw new Error("not implemented");
   // }
-
-  // @Router.post("/groupPosts/request")
-  // @Router.put("/groupPosts/approve")
-  // @Router.post("/groupPosts/publish")
 }
 
 export default getExpressRouter(new Routes());

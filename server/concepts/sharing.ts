@@ -1,5 +1,6 @@
-import { Filter, ObjectId } from "mongodb";
+import { ObjectId } from "mongodb";
 import DocCollection, { BaseDoc } from "../framework/doc";
+import { includes } from "../framework/utils";
 import { NotAllowedError, NotFoundError } from "./errors";
 
 export interface SharingDoc extends BaseDoc {
@@ -17,9 +18,11 @@ export default class SharingConcept {
     this.sharedResources = new DocCollection<SharingDoc>(name);
   }
 
-  async limitSharing(owner: ObjectId, resource: ObjectId, allowRequests: boolean) {
+  async limitSharing(owner: ObjectId, resource: ObjectId, allowRequests: boolean, withAccess: Array<ObjectId>) {
     const requestedAccess: Array<ObjectId> = [];
-    const withAccess = [owner];
+    if (!includes(withAccess, owner)) {
+      withAccess.push(owner);
+    }
     await this.sharedResources.createOne({ owner, resource, allowRequests, requestedAccess, withAccess });
     return { msg: "Shared resource successfully created" };
   }
@@ -37,10 +40,10 @@ export default class SharingConcept {
     if (sharedResource.allowRequests === false) {
       throw new RequestAccessNotAllowedError(_id);
     }
-    if (this.includes(sharedResource.withAccess, user)) {
+    if (includes(sharedResource.withAccess, user)) {
       throw new AccessAlreadyGrantedError(_id, user);
     }
-    if (this.includes(sharedResource.requestedAccess, user)) {
+    if (includes(sharedResource.requestedAccess, user)) {
       throw new RequestAlreadyExistsError(_id, user);
     }
     await this.sharedResources.updateOneGeneral({ _id }, { $addToSet: { requestedAccess: user } });
@@ -52,18 +55,14 @@ export default class SharingConcept {
     if (sharedResource === null) {
       throw new SharedResourceNotFoundError(_id);
     }
-    if (this.includes(sharedResource.withAccess, user)) {
+    if (includes(sharedResource.withAccess, user)) {
       throw new AccessAlreadyGrantedError(_id, user);
     }
-    if (this.includes(sharedResource.requestedAccess, user)) {
+    if (includes(sharedResource.requestedAccess, user)) {
       await this.sharedResources.updateOneGeneral({ _id }, { $pull: { requestedAccess: user } });
     }
     await this.sharedResources.updateOneGeneral({ _id }, { $addToSet: { withAccess: user } });
     return { msg: "Successfully added access!" };
-  }
-
-  includes(array: ObjectId[], element: ObjectId) {
-    return array.map((x) => x.toString()).includes(element.toString());
   }
 
   async removeAccess(_id: ObjectId, user: ObjectId) {
@@ -71,23 +70,19 @@ export default class SharingConcept {
     if (sharedResource === null) {
       throw new SharedResourceNotFoundError(_id);
     }
-    if (!this.includes(sharedResource.withAccess, user)) {
+    if (!includes(sharedResource.withAccess, user)) {
       throw new AccessDoesNotExistError(_id, user);
     }
     await this.sharedResources.updateOneGeneral({ _id }, { $pull: { withAccess: user } });
     return { msg: "Successfully removed access!" };
   }
 
-  async getSharedResources(query: Filter<SharingDoc>) {
-    return await this.sharedResources.readMany(query);
-  }
-
   async getResourcesByUser(user: ObjectId) {
-    return await this.sharedResources.readMany({ withAccess: user });
+    return await this.sharedResources.readMany({ withAccess: user, published: true });
   }
 
   async getResourcesByOwner(user: ObjectId) {
-    return await this.sharedResources.readMany({ owner: user });
+    return await this.sharedResources.readMany({ owner: user, published: true });
   }
 
   async isOwner(user: ObjectId, _id: ObjectId) {
