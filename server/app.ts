@@ -1,3 +1,4 @@
+import CommentConcept from "./concepts/comment";
 import FriendConcept from "./concepts/friend";
 import PostConcept from "./concepts/post";
 import SharingConcept from "./concepts/sharing";
@@ -9,6 +10,7 @@ import WebSessionConcept from "./concepts/websession";
 export const WebSession = new WebSessionConcept();
 export const User = new UserConcept();
 export const Post = new PostConcept();
+export const Comment = new CommentConcept();
 export const Friend = new FriendConcept();
 export const UserList = new UserListConcept();
 export const PostSharing = new SharingConcept("postSharing");

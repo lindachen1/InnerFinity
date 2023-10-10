@@ -92,16 +92,6 @@ export default class UserListConcept {
     }
   }
 
-  // async isMember(user: ObjectId, _id: ObjectId) {
-  //   const UserList = await this.userLists.readOne({ _id });
-  //   if (!UserList) {
-  //     throw new UserListNotFoundError(_id);
-  //   }
-  //   if (!UserList.members.map((member) => member.toString()).includes(user.toString())) {
-  //     throw new UserListNotMemberError(user, _id);
-  //   }
-  // }
-
   async isCreator(user: ObjectId, _id: ObjectId) {
     const UserList = await this.userLists.readOne({ _id });
     if (!UserList) {
@@ -109,6 +99,13 @@ export default class UserListConcept {
     }
     if (UserList.creator.toString() !== user.toString()) {
       throw new UserListCreatorNotMatchError(user, _id);
+    }
+  }
+
+  async isNotFriendList(_id: ObjectId) {
+    const userList = await this.userLists.readOne({ _id });
+    if (userList?.name === "Friends") {
+      throw new NotAllowedError("Cannot edit default Friends list");
     }
   }
 }

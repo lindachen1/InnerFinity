@@ -80,7 +80,13 @@ export default class PostConcept {
   }
 
   async delete(_id: ObjectId) {
-    await this.publishedPosts.deleteOne({ _id });
+    let result = await this.publishedPosts.deleteOne({ _id });
+    if (result.deletedCount === 0) {
+      result = await this.pendingPosts.deleteOne({ _id });
+    }
+    if (result.deletedCount === 0) {
+      throw new PostNotFoundError(_id);
+    }
     return { msg: "Post deleted successfully!" };
   }
 
@@ -95,7 +101,6 @@ export default class PostConcept {
     await this.pendingPosts.deleteMany({ authors: [user] });
     await this.publishedPosts.updateMany({ authors: user }, { $pull: { authors: user } });
     await this.pendingPosts.updateMany({ authors: user }, { $pull: { authors: user } });
-    await this.pendingPosts.updateMany({ requiresApproval: user }, { $pull: { requiresApproval: user } });
     return { msg: "Removed user's posts" };
   }
 
@@ -104,20 +109,10 @@ export default class PostConcept {
     if (!post) {
       throw new NotFoundError(`Post ${_id} does not exist!`);
     }
-    if (post.authors.map((author) => author.toString()).includes(user.toString())) {
+    if (!includes(post.authors, user)) {
       throw new PostAuthorNotMatchError(user, _id);
     }
   }
-
-  // private sanitizeUpdate(update: Partial<PostDoc>) {
-  //   // Make sure the update cannot change the author.
-  //   const allowedUpdates = ["content", "options"];
-  //   for (const key in update) {
-  //     if (!allowedUpdates.includes(key)) {
-  //       throw new NotAllowedError(`Cannot update '${key}' field!`);
-  //     }
-  //   }
-  // }
 }
 
 export class PostAuthorNotMatchError extends NotAllowedError {

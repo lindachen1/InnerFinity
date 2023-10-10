@@ -26,6 +26,11 @@ export default class CommentConcept {
     return { msg: "Comment successfully deleted!" };
   }
 
+  async deleteByTarget(targetId: ObjectId) {
+    await this.comments.deleteMany({ target: targetId });
+    return { msg: "Comments successfully deleted!" };
+  }
+
   async isAuthor(_id: ObjectId, user: ObjectId) {
     const comment = await this.comments.readOne({ _id });
     if (!comment) {

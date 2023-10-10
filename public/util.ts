@@ -102,6 +102,24 @@ const operations: operation[] = [
     fields: { id: "input" },
   },
   {
+    name: "Create comment",
+    endpoint: "/api/posts/:id/comments",
+    method: "POST",
+    fields: { id: "input", content: "input" },
+  },
+  {
+    name: "Get comments by Post ID",
+    endpoint: "/api/posts/:id/comments",
+    method: "GET",
+    fields: { id: "input" },
+  },
+  {
+    name: "Delete comment",
+    endpoint: "/comments/:id",
+    method: "DELETE",
+    fields: { id: "input" },
+  },
+  {
     name: "Request access to Resource",
     endpoint: "/api/sharing/:id/requests",
     method: "POST",
