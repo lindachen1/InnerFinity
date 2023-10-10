@@ -173,6 +173,48 @@ const operations: operation[] = [
     method: "DELETE",
     fields: { id: "input" },
   },
+  {
+    name: "Get friends",
+    endpoint: "/api/friends",
+    method: "GET",
+    fields: {},
+  },
+  {
+    name: "Delete friends",
+    endpoint: "/api/friends/:friend",
+    method: "DELETE",
+    fields: { friend: "input" },
+  },
+  {
+    name: "Get friend requests",
+    endpoint: "/api/friend/requests",
+    method: "GET",
+    fields: {},
+  },
+  {
+    name: "Send friend request",
+    endpoint: "/api/friend/requests/:to",
+    method: "POST",
+    fields: { to: "input" },
+  },
+  {
+    name: "Remove friend request",
+    endpoint: "/api/friend/requests/:to",
+    method: "DELETE",
+    fields: { to: "input" },
+  },
+  {
+    name: "Accept friend request",
+    endpoint: "/api/friend/accept/:from",
+    method: "PUT",
+    fields: { from: "input" },
+  },
+  {
+    name: "Reject friend request",
+    endpoint: "/api/friend/reject/:from",
+    method: "PUT",
+    fields: { from: "input" },
+  },
 ];
 
 // Do not edit below here.
