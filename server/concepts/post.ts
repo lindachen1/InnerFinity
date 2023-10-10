@@ -4,51 +4,40 @@ import DocCollection, { BaseDoc } from "../framework/doc";
 import { includes } from "../framework/utils";
 import { NotAllowedError, NotFoundError } from "./errors";
 
-export interface PostOptions {
-  backgroundColor?: string;
-}
-
 export interface PostDoc extends BaseDoc {
-  author: ObjectId;
+  authors: Array<ObjectId>;
   content: string;
-  options?: PostOptions;
 }
 
 export interface PendingPostDoc extends BaseDoc {
-  author: ObjectId;
+  authors: Array<ObjectId>;
   content: string;
-  options?: PostOptions;
   requiresApproval: Array<ObjectId>;
 }
 
 export default class PostConcept {
-  public readonly pendingPosts;
-  public readonly publishedPosts;
+  public readonly pendingPosts = new DocCollection<PendingPostDoc>("pendingPosts");
+  public readonly publishedPosts = new DocCollection<PostDoc>("publishedPosts");
 
-  public constructor(name: string) {
-    this.pendingPosts = new DocCollection<PendingPostDoc>(name + "_pending");
-    this.publishedPosts = new DocCollection<PostDoc>(name + "_published");
-  }
-
-  async create(author: ObjectId, content: string, requiresApproval: Array<ObjectId>, options?: PostOptions) {
-    const _id = await this.pendingPosts.createOne({ author, content, options, requiresApproval });
+  async create(authors: Array<ObjectId>, content: string) {
+    const requiresApproval = authors.length === 1 ? [] : authors;
+    const _id = await this.pendingPosts.createOne({ authors, content, requiresApproval });
     return await this.publish(_id);
   }
 
   private async publish(postId: ObjectId) {
-    const pendingPost = await this.pendingPosts.readOne({ postId });
+    const pendingPost = await this.pendingPosts.readOne({ _id: postId });
     if (!pendingPost) {
       throw new PostNotFoundError(postId);
     }
     if (pendingPost.requiresApproval.length === 0) {
-      await this.pendingPosts.deleteOne({ postId });
-      const author = pendingPost.author;
+      await this.pendingPosts.deleteOne({ _id: postId });
+      const authors = pendingPost.authors;
       const content = pendingPost.content;
-      const options = pendingPost.options;
-      const _id = await this.publishedPosts.createOne({ author, content, options });
+      const _id = await this.publishedPosts.createOne({ authors, content });
       return { msg: "Post successfully published!", post: await this.publishedPosts.readOne({ _id }) };
     } else {
-      return { msg: "Post successfully created, but is pending approval." };
+      return { msg: "Post is pending approval!", post: pendingPost };
     }
   }
 
@@ -72,7 +61,7 @@ export default class PostConcept {
     return { msg: "Pending post rejected, will be deleted. " };
   }
 
-  async getPendingPosts(query: Filter<PostDoc>) {
+  async getPendingPosts(query: Filter<PendingPostDoc>) {
     const posts = await this.pendingPosts.readMany(query, {
       sort: { dateUpdated: -1 },
     });
@@ -87,14 +76,8 @@ export default class PostConcept {
   }
 
   async getByAuthor(author: ObjectId) {
-    return await this.getPosts({ author });
+    return await this.getPosts({ author: author });
   }
-
-  // async update(_id: ObjectId, update: Partial<PostDoc>) {
-  //   this.sanitizeUpdate(update);
-  //   await this.posts.updateOne({ _id }, update);
-  //   return { msg: "Post successfully updated!" };
-  // }
 
   async delete(_id: ObjectId) {
     await this.publishedPosts.deleteOne({ _id });
@@ -111,7 +94,7 @@ export default class PostConcept {
     if (!post) {
       throw new NotFoundError(`Post ${_id} does not exist!`);
     }
-    if (post.author.toString() !== user.toString()) {
+    if (post.authors.map((author) => author.toString()).includes(user.toString())) {
       throw new PostAuthorNotMatchError(user, _id);
     }
   }
@@ -132,7 +115,7 @@ export class PostAuthorNotMatchError extends NotAllowedError {
     public readonly author: ObjectId,
     public readonly _id: ObjectId,
   ) {
-    super("{0} is not the author of post {1}!", author, _id);
+    super("{0} is not an author of post {1}!", author, _id);
   }
 }
 

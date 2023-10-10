@@ -1,24 +1,32 @@
 import { User } from "./app";
 import { AlreadyFriendsError, FriendNotFoundError, FriendRequestAlreadyExistsError, FriendRequestDoc, FriendRequestNotFoundError } from "./concepts/friend";
-import { GroupDoc } from "./concepts/group";
 import { PostAuthorNotMatchError, PostDoc } from "./concepts/post";
 import { SharingDoc } from "./concepts/sharing";
+import { UserListDoc } from "./concepts/userList";
 import { Router } from "./framework/router";
 
 /**
  * This class does useful conversions for the frontend.
- * For example, it converts a {@link PostDoc} into a more readable format for the frontend.
+ * For example, it converts a {@link UserPostDoc} into a more readable format for the frontend.
  */
 export default class Responses {
   /**
-   * Convert PostDoc into more readable format for the frontend by converting the author id into a username.
+   * Convert PostDoc into more readable format for the frontend by converting the author ids into usernames.
    */
   static async post(post: PostDoc | null) {
     if (!post) {
       return post;
     }
-    const author = await User.getUserById(post.author);
-    return { ...post, author: author.username };
+    const authors = await User.idsToUsernames(post.authors);
+    return { ...post, authors: authors };
+  }
+
+  /**
+   * Same as {@link post} but for an array of PostDoc for improved performance.
+   */
+  static async posts(posts: PostDoc[]) {
+    const authors = await Promise.all(posts.map((post) => User.idsToUsernames(post.authors)));
+    return posts.map((post, i) => ({ ...post, authors: authors[i] }));
   }
 
   /**
@@ -28,49 +36,42 @@ export default class Responses {
     if (!sharedResource) {
       return sharedResource;
     }
-    const owner = await User.getUserById(sharedResource.owner);
+    const owners = await User.idsToUsernames(sharedResource.owners);
     const requested = await User.idsToUsernames(sharedResource.requestedAccess);
     const withAccess = await User.idsToUsernames(sharedResource.withAccess);
-    return { ...sharedResource, owner: owner.username, requestedAccess: requested, withAccess: withAccess };
+    // TODO: change withAccess to be able to detect list names as well as user names
+    return { ...sharedResource, owners: owners, requestedAccess: requested, withAccess: withAccess };
   }
 
   /**
    * Same as {@link sharedResource} but for an array of SharingDoc for improved performance.
    */
   static async sharedResources(sharedResources: SharingDoc[]) {
-    const owners = await User.idsToUsernames(sharedResources.map((resource) => resource.owner));
+    const owners = await Promise.all(sharedResources.map((resource) => User.idsToUsernames(resource.owners)));
     const requested = await Promise.all(sharedResources.map(async (resource) => await User.idsToUsernames(resource.requestedAccess)));
     const withAccess = await Promise.all(sharedResources.map(async (resource) => await User.idsToUsernames(resource.withAccess)));
     return sharedResources.map((resource, i) => ({ ...resource, owner: owners[i], requestedAccess: requested[i], withAccess: withAccess[i] }));
   }
 
   /**
-   * Convert GroupDoc into more readable format for the frontend by converting the creator and members id into a username.
+   * Convert UserListDoc into more readable format for the frontend by converting the creator and members id into a username.
    */
-  static async group(group: GroupDoc | null) {
-    if (!group) {
-      return group;
+  static async userList(list: UserListDoc | null) {
+    if (!list) {
+      return list;
     }
-    const creator = await User.getUserById(group.creator);
-    const members = await User.idsToUsernames(group.members);
-    return { ...group, creator: creator.username, members: members };
+    const creator = await User.getUserById(list.creator);
+    const members = await User.idsToUsernames(list.members);
+    return { ...list, creator: creator.username, members: members };
   }
 
   /**
-   * Same as {@link group} but for an array of GroupDoc for improved performance.
+   * Same as {@link userList} but for an array of UserListDoc for improved performance.
    */
-  static async groups(groups: GroupDoc[]) {
-    const creators = await User.idsToUsernames(groups.map((group) => group.creator));
-    const members = await Promise.all(groups.map(async (group) => await User.idsToUsernames(group.members)));
-    return groups.map((group, i) => ({ ...group, creator: creators[i], members: members[i] }));
-  }
-
-  /**
-   * Same as {@link post} but for an array of PostDoc for improved performance.
-   */
-  static async posts(posts: PostDoc[]) {
-    const authors = await User.idsToUsernames(posts.map((post) => post.author));
-    return posts.map((post, i) => ({ ...post, author: authors[i] }));
+  static async userLists(lists: UserListDoc[]) {
+    const creators = await User.idsToUsernames(lists.map((list) => list.creator));
+    const members = await Promise.all(lists.map(async (list) => await User.idsToUsernames(list.members)));
+    return lists.map((list, i) => ({ ...list, creator: creators[i], members: members[i] }));
   }
 
   /**

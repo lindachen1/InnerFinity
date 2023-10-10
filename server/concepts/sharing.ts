@@ -1,10 +1,10 @@
-import { ObjectId } from "mongodb";
+import { Filter, ObjectId } from "mongodb";
 import DocCollection, { BaseDoc } from "../framework/doc";
 import { includes } from "../framework/utils";
 import { NotAllowedError, NotFoundError } from "./errors";
 
 export interface SharingDoc extends BaseDoc {
-  owner: ObjectId;
+  owners: Array<ObjectId>;
   resource: ObjectId;
   allowRequests: boolean;
   requestedAccess: Array<ObjectId>;
@@ -18,16 +18,26 @@ export default class SharingConcept {
     this.sharedResources = new DocCollection<SharingDoc>(name);
   }
 
-  async limitSharing(owner: ObjectId, resource: ObjectId, allowRequests: boolean, withAccess: Array<ObjectId>) {
+  async limitSharing(owners: Array<ObjectId>, resource: ObjectId, allowRequests: boolean, withAccess: Array<ObjectId>) {
     const requestedAccess: Array<ObjectId> = [];
-    if (!includes(withAccess, owner)) {
-      withAccess.push(owner);
+    for (const owner of owners) {
+      if (!includes(withAccess, owner)) {
+        withAccess.push(owner);
+      }
     }
-    await this.sharedResources.createOne({ owner, resource, allowRequests, requestedAccess, withAccess });
+    await this.sharedResources.createOne({ owners, resource, allowRequests, requestedAccess, withAccess });
     return { msg: "Shared resource successfully created" };
   }
 
+  async updateResource(oldId: ObjectId, newId: ObjectId) {
+    oldId = new ObjectId(oldId);
+    newId = new ObjectId(newId);
+    const result = await this.sharedResources.updateOne({ resource: oldId }, { resource: newId });
+    return result;
+  }
+
   async deleteByResourceId(resourceId: ObjectId) {
+    resourceId = new ObjectId(resourceId);
     await this.sharedResources.deleteOne({ resource: resourceId });
     return { msg: "Shared resource deleted successfully!" };
   }
@@ -77,12 +87,16 @@ export default class SharingConcept {
     return { msg: "Successfully removed access!" };
   }
 
-  async getResourcesByUser(user: ObjectId) {
-    return await this.sharedResources.readMany({ withAccess: user, published: true });
+  async getResources(filter: Filter<SharingDoc>) {
+    return await this.sharedResources.readMany(filter);
+  }
+
+  async getResourcesByAccessable(targets: Array<ObjectId>) {
+    return await this.sharedResources.readMany({ withAccess: { $in: targets } });
   }
 
   async getResourcesByOwner(user: ObjectId) {
-    return await this.sharedResources.readMany({ owner: user, published: true });
+    return await this.sharedResources.readMany({ owner: user });
   }
 
   async isOwner(user: ObjectId, _id: ObjectId) {
@@ -90,7 +104,7 @@ export default class SharingConcept {
     if (!sharedResource) {
       throw new SharedResourceNotFoundError(_id);
     }
-    if (sharedResource.owner.toString() !== user.toString()) {
+    if (!includes(sharedResource.owners, user)) {
       throw new ResourceOwnerNotMatchError(user, _id);
     }
   }
@@ -140,6 +154,6 @@ export class ResourceOwnerNotMatchError extends NotAllowedError {
     public readonly owner: ObjectId,
     public readonly _id: ObjectId,
   ) {
-    super("{0} is not the owner of shared resource {1}!", owner, _id);
+    super("{0} is not an owner of shared resource {1}!", owner, _id);
   }
 }
