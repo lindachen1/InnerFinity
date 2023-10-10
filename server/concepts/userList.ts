@@ -30,6 +30,11 @@ export default class UserListConcept {
     return userLists.map((list) => list._id);
   }
 
+  async idsToNames(ids: ObjectId[]) {
+    const userLists = await this.userLists.readMany({ _id: { $in: ids } });
+    return userLists.map((list) => list.name);
+  }
+
   async editName(_id: ObjectId, name: string) {
     const creator = (await this.userLists.readOne({ _id }))?.creator;
     if (creator === undefined) {

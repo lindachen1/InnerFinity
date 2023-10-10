@@ -1,4 +1,5 @@
-import { User } from "./app";
+import { ObjectId } from "mongodb";
+import { User, UserList } from "./app";
 import { AlreadyFriendsError, FriendNotFoundError, FriendRequestAlreadyExistsError, FriendRequestDoc, FriendRequestNotFoundError } from "./concepts/friend";
 import { PostAuthorNotMatchError, PostDoc } from "./concepts/post";
 import { SharingDoc } from "./concepts/sharing";
@@ -38,9 +39,14 @@ export default class Responses {
     }
     const owners = await User.idsToUsernames(sharedResource.owners);
     const requested = await User.idsToUsernames(sharedResource.requestedAccess);
-    const withAccess = await User.idsToUsernames(sharedResource.withAccess);
-    // TODO: change withAccess to be able to detect list names as well as user names
+    const withAccess = await this.getNamesFromAccessList(sharedResource.withAccess);
     return { ...sharedResource, owners: owners, requestedAccess: requested, withAccess: withAccess };
+  }
+
+  private static async getNamesFromAccessList(accessList: ObjectId[]) {
+    const withAccessUsers = (await User.idsToUsernames(accessList)).filter((name) => name !== "DELETED_USER");
+    const withAccessLists = await UserList.idsToNames(accessList);
+    return withAccessUsers.concat(withAccessLists);
   }
 
   /**
@@ -49,8 +55,8 @@ export default class Responses {
   static async sharedResources(sharedResources: SharingDoc[]) {
     const owners = await Promise.all(sharedResources.map((resource) => User.idsToUsernames(resource.owners)));
     const requested = await Promise.all(sharedResources.map(async (resource) => await User.idsToUsernames(resource.requestedAccess)));
-    const withAccess = await Promise.all(sharedResources.map(async (resource) => await User.idsToUsernames(resource.withAccess)));
-    return sharedResources.map((resource, i) => ({ ...resource, owner: owners[i], requestedAccess: requested[i], withAccess: withAccess[i] }));
+    const withAccess = await Promise.all(sharedResources.map(async (resource) => await this.getNamesFromAccessList(resource.withAccess)));
+    return sharedResources.map((resource, i) => ({ ...resource, owners: owners[i], requestedAccess: requested[i], withAccess: withAccess[i] }));
   }
 
   /**

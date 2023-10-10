@@ -11,4 +11,4 @@ export const User = new UserConcept();
 export const Post = new PostConcept();
 export const Friend = new FriendConcept();
 export const UserList = new UserListConcept();
-export const PostSharing = new SharingConcept("post_sharing");
+export const PostSharing = new SharingConcept("postSharing");

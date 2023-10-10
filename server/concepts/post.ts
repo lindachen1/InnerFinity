@@ -86,7 +86,17 @@ export default class PostConcept {
 
   async deleteMany(filter: Filter<PostDoc>) {
     await this.publishedPosts.deleteMany(filter);
+    await this.pendingPosts.deleteMany(filter);
     return { msg: "Posts deleted successfully!" };
+  }
+
+  async removeAuthor(user: ObjectId) {
+    await this.publishedPosts.deleteMany({ authors: [user] });
+    await this.pendingPosts.deleteMany({ authors: [user] });
+    await this.publishedPosts.updateMany({ authors: user }, { $pull: { authors: user } });
+    await this.pendingPosts.updateMany({ authors: user }, { $pull: { authors: user } });
+    await this.pendingPosts.updateMany({ requiresApproval: user }, { $pull: { requiresApproval: user } });
+    return { msg: "Removed user's posts" };
   }
 
   async isAuthor(user: ObjectId, _id: ObjectId) {

@@ -47,7 +47,8 @@ class Routes {
     const user = WebSession.getUser(session);
     WebSession.end(session);
     await UserList.deleteMany({ creator: user });
-    // TODO: delete posts by this user and remove the user from others' lists
+    await Post.removeAuthor(user);
+    await PostSharing.removeOwner(user);
     return await User.delete(user);
   }
 
@@ -112,6 +113,9 @@ class Routes {
     }
     const shareWithUserIds = await User.usernamesToIds(shareWithUsers);
     const shareWithListIds = await UserList.namesToIds(shareWithLists, user);
+    for (const listId of shareWithListIds) {
+      await UserList.isCreator(user, listId);
+    }
     const shareWithIds = shareWithUserIds.concat(shareWithListIds);
     await PostSharing.limitSharing(authorIds, created.post._id, allowRequests, shareWithIds);
     return created;
