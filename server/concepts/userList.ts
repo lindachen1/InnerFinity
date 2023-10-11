@@ -63,8 +63,13 @@ export default class UserListConcept {
     return { msg: "UserList member removed!" };
   }
 
-  async getUserLists(query: Filter<UserListDoc>) {
-    const UserLists = await this.userLists.readMany(query);
+  async getUserListsByCreator(user: ObjectId) {
+    const UserLists = await this.userLists.readMany({ creator: user });
+    return UserLists;
+  }
+
+  async getUserListsByMember(user: ObjectId) {
+    const UserLists = await this.userLists.readMany({ members: user });
     return UserLists;
   }
 

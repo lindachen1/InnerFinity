@@ -12,13 +12,17 @@ export default class CommentConcept {
   public readonly comments = new DocCollection<CommentDoc>("comments");
 
   async create(author: ObjectId, content: string, target: ObjectId) {
+    target = new ObjectId(target);
     const _id = await this.comments.createOne({ author, content, target });
     return { msg: "Comment successfully created!", comment: await this.comments.readOne({ _id }) };
   }
 
-  async getCommentsByTarget(targetId: ObjectId) {
-    const comments = await this.comments.readMany({ target: targetId }, { sort: { dateUpdated: -1 } });
-    return comments;
+  async getCommentsByTarget(targetId: ObjectId, possibleIds?: Array<ObjectId>) {
+    targetId = new ObjectId(targetId);
+    if (possibleIds) {
+      return await this.comments.readMany({ _id: { $in: possibleIds }, target: targetId }, { sort: { dateUpdated: -1 } });
+    }
+    return await this.comments.readMany({ target: targetId }, { sort: { dateUpdated: -1 } });
   }
 
   async delete(_id: ObjectId) {
@@ -27,8 +31,14 @@ export default class CommentConcept {
   }
 
   async deleteByTarget(targetId: ObjectId) {
+    targetId = new ObjectId(targetId);
     await this.comments.deleteMany({ target: targetId });
-    return { msg: "Comments successfully deleted!" };
+    return { msg: `Comments under target ${targetId} successfully deleted!` };
+  }
+
+  async deleteByAuthor(user: ObjectId) {
+    await this.comments.deleteMany({ author: user });
+    return { msg: `Comments by author ${user} successfully deleted!` };
   }
 
   async isAuthor(_id: ObjectId, user: ObjectId) {

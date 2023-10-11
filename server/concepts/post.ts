@@ -75,6 +75,10 @@ export default class PostConcept {
     return posts;
   }
 
+  async getAuthors(_id: ObjectId) {
+    return (await this.publishedPosts.readOne({ _id }))?.authors;
+  }
+
   async getByAuthor(author: ObjectId) {
     return await this.getPosts({ author: author });
   }
@@ -96,7 +100,7 @@ export default class PostConcept {
     return { msg: "Posts deleted successfully!" };
   }
 
-  async removeAuthor(user: ObjectId) {
+  async deletePostsByAuthor(user: ObjectId) {
     await this.publishedPosts.deleteMany({ authors: [user] });
     await this.pendingPosts.deleteMany({ authors: [user] });
     await this.publishedPosts.updateMany({ authors: user }, { $pull: { authors: user } });

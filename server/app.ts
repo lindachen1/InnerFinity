@@ -14,3 +14,4 @@ export const Comment = new CommentConcept();
 export const Friend = new FriendConcept();
 export const UserList = new UserListConcept();
 export const PostSharing = new SharingConcept("postSharing");
+export const CommentSharing = new SharingConcept("commentSharing");

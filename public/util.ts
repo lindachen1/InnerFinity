@@ -66,14 +66,14 @@ const operations: operation[] = [
     fields: {},
   },
   {
-    name: "Get Accessable Posts",
-    endpoint: "/api/accessablePosts",
+    name: "Get Accessible Posts",
+    endpoint: "/api/accessiblePosts",
     method: "GET",
     fields: {},
   },
   {
-    name: "Get Shared Resources",
-    endpoint: "/api/sharing",
+    name: "Get Shared Post Resources",
+    endpoint: "/api/sharing/posts",
     method: "GET",
     fields: {},
   },
@@ -102,10 +102,16 @@ const operations: operation[] = [
     fields: { id: "input" },
   },
   {
+    name: "Get Shared Comment Resources",
+    endpoint: "/api/sharing/comments",
+    method: "GET",
+    fields: {},
+  },
+  {
     name: "Create comment",
     endpoint: "/api/posts/:id/comments",
     method: "POST",
-    fields: { id: "input", content: "input" },
+    fields: { id: "input", content: "input", shareWithUsers: "json", shareWithLists: "json" },
   },
   {
     name: "Get comments by Post ID",
@@ -115,7 +121,7 @@ const operations: operation[] = [
   },
   {
     name: "Delete comment",
-    endpoint: "/comments/:id",
+    endpoint: "/api/comments/:id",
     method: "DELETE",
     fields: { id: "input" },
   },
