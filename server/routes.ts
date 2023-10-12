@@ -109,8 +109,8 @@ class Routes {
   @Router.get("/accessiblePosts")
   async getAccessiblePosts(session: WebSessionDoc) {
     const user = WebSession.getUser(session);
-    const accessList = await getAccessList(user);
-    const resources = await PostSharing.getResourcesByAccessible(accessList);
+    const userLists = (await UserList.getUserListsByMember(user)).map((x) => x._id);
+    const resources = await PostSharing.getResourcesByAccessible(user, userLists);
     const postIDs = resources.map((record) => record.resource);
     const posts = await Post.getPublishedPosts({ _id: { $in: postIDs } });
     return Responses.posts(posts);
@@ -140,8 +140,12 @@ class Routes {
     }
     const content = await PostMedia.create(imageURL, caption, altText);
     const created = await Post.create(authorIds, content);
-    const shareWithIds = await combinedAccessList(user, shareWithUsers, shareWithLists);
-    await PostSharing.limitSharing(authorIds, created.post!._id, allowRequests === "Y", shareWithIds);
+    const shareWithUserIds = await User.usernamesToIds(shareWithUsers);
+    const shareWithListIds = await UserList.namesToIds(shareWithLists, user);
+    for (const listId of shareWithListIds) {
+      await UserList.isCreator(user, listId);
+    }
+    await PostSharing.limitSharing(authorIds, created.post!._id, allowRequests === "Y", shareWithUserIds, shareWithListIds);
     return { msg: created.msg, post: await Responses.post(created.post) };
   }
 
@@ -184,27 +188,31 @@ class Routes {
   @Router.post("/posts/:_id/comments")
   async createComment(session: WebSessionDoc, _id: ObjectId, content: string, shareWithUsers: Array<string>, shareWithLists: Array<string>) {
     const author = WebSession.getUser(session);
-    const accessList = await getAccessList(author);
-    await PostSharing.isAccessible(_id, accessList);
+    const userLists = (await UserList.getUserListsByMember(author)).map((x) => x._id);
+    await PostSharing.isAccessible(_id, author, userLists);
     await Post.isPublished(_id);
     const comment = await Comment.create(author, content, _id);
-    const withAccess = await combinedAccessList(author, shareWithUsers, shareWithLists);
+    const shareWithUserIds = await User.usernamesToIds(shareWithUsers);
+    const shareWithListIds = await UserList.namesToIds(shareWithLists, author);
+    for (const listId of shareWithListIds) {
+      await UserList.isCreator(author, listId);
+    }
     const postAuthors = (await Post.getAuthors(_id)) ?? [];
     for (const author of postAuthors) {
-      if (!includes(withAccess, author)) {
-        withAccess.push(author);
+      if (!includes(shareWithUserIds, author)) {
+        shareWithUserIds.push(author);
       }
     }
-    await CommentSharing.limitSharing([author], comment.comment!._id, false, withAccess);
+    await CommentSharing.limitSharing([author], comment.comment!._id, false, shareWithUserIds, shareWithListIds);
     return comment;
   }
 
   @Router.get("/posts/:_id/comments")
   async getCommentsByTarget(session: WebSessionDoc, _id: ObjectId) {
     const user = WebSession.getUser(session);
-    const accessList = await getAccessList(user);
-    await PostSharing.isAccessible(_id, accessList);
-    const accessibleComments = await CommentSharing.getResourcesByAccessible(accessList);
+    const userLists = (await UserList.getUserListsByMember(user)).map((x) => x._id);
+    await PostSharing.isAccessible(_id, user, userLists);
+    const accessibleComments = await CommentSharing.getResourcesByAccessible(user, userLists);
     const accessibleCommentIds = accessibleComments.map((x) => x.resource);
     const comments = await Comment.getCommentsByTarget(_id, accessibleCommentIds);
     return comments;
@@ -320,45 +328,46 @@ class Routes {
     return await UserList.deleteUserList(_id);
   }
 
-  @Router.post("/sharing/:_id/requests")
+  @Router.post("/sharing/posts/:_id/requests")
   async requestAccess(session: WebSessionDoc, _id: ObjectId) {
     const user = WebSession.getUser(session);
     return await PostSharing.requestAccess(_id, user);
   }
 
-  @Router.post("/sharing/:_id/members")
-  async addAccess(session: WebSessionDoc, _id: ObjectId, user: string) {
+  @Router.post("/sharing/posts/:_id/members")
+  async addUserAccess(session: WebSessionDoc, _id: ObjectId, user: string) {
     const userID = (await User.getUserByUsername(user))._id;
     const owner = WebSession.getUser(session);
     await PostSharing.isOwner(owner, _id);
-    return await PostSharing.addAccess(_id, userID);
+    return await PostSharing.addUserAccess(_id, userID);
   }
 
-  @Router.delete("/sharing/:_id/members")
-  async removeAccess(session: WebSessionDoc, _id: ObjectId, user: string) {
+  @Router.delete("/sharing/posts/:_id/members")
+  async removeUserAccess(session: WebSessionDoc, _id: ObjectId, user: string) {
     const userID = (await User.getUserByUsername(user))._id;
     const owner = WebSession.getUser(session);
     await PostSharing.isOwner(owner, _id);
-    return await PostSharing.removeAccess(_id, userID);
+    return await PostSharing.removeUserAccess(_id, userID);
+  }
+
+  @Router.post("/sharing/posts/:_id/lists")
+  async addListAccess(session: WebSessionDoc, _id: ObjectId, list: string) {
+    const owner = WebSession.getUser(session);
+    const listID = await UserList.nameToId(list, owner);
+    await PostSharing.isOwner(owner, _id);
+    return await PostSharing.addListAccess(_id, listID);
+  }
+
+  @Router.delete("/sharing/posts/:_id/lists")
+  async removeListAccess(session: WebSessionDoc, _id: ObjectId, list: string) {
+    const owner = WebSession.getUser(session);
+    const listID = await UserList.nameToId(list, owner);
+    await PostSharing.isOwner(owner, _id);
+    return await PostSharing.removeListAccess(_id, listID);
   }
 }
 
 export default getExpressRouter(new Routes());
-
-async function getAccessList(user: ObjectId) {
-  const accessList = (await UserList.getUserListsByMember(user)).map((x) => x._id);
-  accessList.push(user);
-  return accessList;
-}
-
-async function combinedAccessList(user: ObjectId, shareWithUsers: Array<string>, shareWithLists: Array<string>) {
-  const shareWithUserIds = await User.usernamesToIds(shareWithUsers);
-  const shareWithListIds = await UserList.namesToIds(shareWithLists, user);
-  for (const listId of shareWithListIds) {
-    await UserList.isCreator(user, listId);
-  }
-  return shareWithUserIds.concat(shareWithListIds);
-}
 
 async function deleteCommentsUnderPost(postId: ObjectId) {
   const deletedComments = await Comment.getCommentsByTarget(postId);

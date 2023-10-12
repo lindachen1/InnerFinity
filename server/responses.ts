@@ -1,4 +1,3 @@
-import { ObjectId } from "mongodb";
 import { PostMedia, User, UserList } from "./app";
 import { AlreadyFriendsError, FriendNotFoundError, FriendRequestAlreadyExistsError, FriendRequestDoc, FriendRequestNotFoundError } from "./concepts/friend";
 import { PostAuthorNotMatchError, PostDoc } from "./concepts/post";
@@ -41,14 +40,9 @@ export default class Responses {
     }
     const owners = await User.idsToUsernames(sharedResource.owners);
     const requested = await User.idsToUsernames(sharedResource.requestedAccess);
-    const withAccess = await this.getNamesFromAccessList(sharedResource.withAccess);
-    return { ...sharedResource, owners: owners, requestedAccess: requested, withAccess: withAccess };
-  }
-
-  private static async getNamesFromAccessList(accessList: ObjectId[]) {
-    const withAccessUsers = (await User.idsToUsernames(accessList)).filter((name) => name !== "DELETED_USER");
-    const withAccessLists = await UserList.idsToNames(accessList);
-    return withAccessUsers.concat(withAccessLists);
+    const usersWithAccess = await User.idsToUsernames(sharedResource.usersWithAccess);
+    const listsWithAccess = await UserList.idsToNames(sharedResource.listsWithAccess);
+    return { ...sharedResource, owners: owners, requestedAccess: requested, usersWithAccess: usersWithAccess, listsWithAccess: listsWithAccess };
   }
 
   /**
@@ -57,8 +51,9 @@ export default class Responses {
   static async sharedResources(sharedResources: SharingDoc[]) {
     const owners = await Promise.all(sharedResources.map((resource) => User.idsToUsernames(resource.owners)));
     const requested = await Promise.all(sharedResources.map(async (resource) => await User.idsToUsernames(resource.requestedAccess)));
-    const withAccess = await Promise.all(sharedResources.map(async (resource) => await this.getNamesFromAccessList(resource.withAccess)));
-    return sharedResources.map((resource, i) => ({ ...resource, owners: owners[i], requestedAccess: requested[i], withAccess: withAccess[i] }));
+    const usersWithAccess = await Promise.all(sharedResources.map(async (resource) => await User.idsToUsernames(resource.usersWithAccess)));
+    const listsWithAccess = await Promise.all(sharedResources.map(async (resource) => await UserList.idsToNames(resource.listsWithAccess)));
+    return sharedResources.map((resource, i) => ({ ...resource, owners: owners[i], requestedAccess: requested[i], usersWithAccess: usersWithAccess[i], listsWithAccess: listsWithAccess[i] }));
   }
 
   /**

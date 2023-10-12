@@ -102,6 +102,36 @@ const operations: operation[] = [
     fields: { id: "input" },
   },
   {
+    name: "Request access to Post",
+    endpoint: "/api/sharing/posts/:id/requests",
+    method: "POST",
+    fields: { id: "input" },
+  },
+  {
+    name: "Add access to Post",
+    endpoint: "/api/sharing/posts/:id/members",
+    method: "POST",
+    fields: { id: "input", user: "input" },
+  },
+  {
+    name: "Remove access to Post",
+    endpoint: "/api/sharing/posts/:id/members",
+    method: "DELETE",
+    fields: { id: "input", user: "input" },
+  },
+  {
+    name: "Add list access to Post",
+    endpoint: "/api/sharing/posts/:id/lists",
+    method: "POST",
+    fields: { id: "input", list: "input" },
+  },
+  {
+    name: "Remove list access to Post",
+    endpoint: "/api/sharing/posts/:id/lists",
+    method: "DELETE",
+    fields: { id: "input", list: "input" },
+  },
+  {
     name: "Get Shared Comment Resources",
     endpoint: "/api/sharing/comments",
     method: "GET",
@@ -124,24 +154,6 @@ const operations: operation[] = [
     endpoint: "/api/comments/:id",
     method: "DELETE",
     fields: { id: "input" },
-  },
-  {
-    name: "Request access to Resource",
-    endpoint: "/api/sharing/:id/requests",
-    method: "POST",
-    fields: { id: "input" },
-  },
-  {
-    name: "Add access to Resource",
-    endpoint: "/api/sharing/:id/members",
-    method: "POST",
-    fields: { id: "input", user: "input" },
-  },
-  {
-    name: "Remove access to Resource",
-    endpoint: "/api/sharing/:id/members",
-    method: "DELETE",
-    fields: { id: "input", user: "input" },
   },
   {
     name: "Get User List",

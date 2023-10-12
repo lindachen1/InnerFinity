@@ -8,7 +8,8 @@ export interface SharingDoc extends BaseDoc {
   resource: ObjectId;
   allowRequests: boolean;
   requestedAccess: Array<ObjectId>;
-  withAccess: Array<ObjectId>;
+  usersWithAccess: Array<ObjectId>;
+  listsWithAccess: Array<ObjectId>;
 }
 
 export default class SharingConcept {
@@ -18,14 +19,14 @@ export default class SharingConcept {
     this.sharedResources = new DocCollection<SharingDoc>(name);
   }
 
-  async limitSharing(owners: Array<ObjectId>, resource: ObjectId, allowRequests: boolean, withAccess: Array<ObjectId>) {
+  async limitSharing(owners: Array<ObjectId>, resource: ObjectId, allowRequests: boolean, usersWithAccess: Array<ObjectId>, listsWithAccess: Array<ObjectId>) {
     const requestedAccess: Array<ObjectId> = [];
     for (const owner of owners) {
-      if (!includes(withAccess, owner)) {
-        withAccess.push(owner);
+      if (!includes(usersWithAccess, owner)) {
+        usersWithAccess.push(owner);
       }
     }
-    await this.sharedResources.createOne({ owners, resource, allowRequests, requestedAccess, withAccess });
+    await this.sharedResources.createOne({ owners, resource, allowRequests, requestedAccess, usersWithAccess, listsWithAccess });
     return { msg: "Shared resource successfully created" };
   }
 
@@ -55,7 +56,7 @@ export default class SharingConcept {
     if (sharedResource.allowRequests === false) {
       throw new RequestAccessNotAllowedError(_id);
     }
-    if (includes(sharedResource.withAccess, user)) {
+    if (includes(sharedResource.usersWithAccess, user)) {
       throw new AccessAlreadyGrantedError(_id, user);
     }
     if (includes(sharedResource.requestedAccess, user)) {
@@ -65,32 +66,59 @@ export default class SharingConcept {
     return { msg: "Successfully requested access!" };
   }
 
-  async addAccess(_id: ObjectId, user: ObjectId) {
+  async addUserAccess(_id: ObjectId, user: ObjectId) {
     _id = new ObjectId(_id);
     const sharedResource = await this.sharedResources.readOne({ resource: _id });
     if (sharedResource === null) {
       throw new SharedResourceNotFoundError(_id);
     }
-    if (includes(sharedResource.withAccess, user)) {
+    if (includes(sharedResource.usersWithAccess, user)) {
       throw new AccessAlreadyGrantedError(_id, user);
     }
     if (includes(sharedResource.requestedAccess, user)) {
       await this.sharedResources.updateOneGeneral({ resource: _id }, { $pull: { requestedAccess: user } });
     }
-    await this.sharedResources.updateOneGeneral({ resource: _id }, { $addToSet: { withAccess: user } });
+    await this.sharedResources.updateOneGeneral({ resource: _id }, { $addToSet: { usersWithAccess: user } });
     return { msg: "Successfully added access!" };
   }
 
-  async removeAccess(_id: ObjectId, user: ObjectId) {
+  async addListAccess(_id: ObjectId, list: ObjectId) {
     _id = new ObjectId(_id);
     const sharedResource = await this.sharedResources.readOne({ resource: _id });
     if (sharedResource === null) {
       throw new SharedResourceNotFoundError(_id);
     }
-    if (!includes(sharedResource.withAccess, user)) {
+    if (includes(sharedResource.listsWithAccess, list)) {
+      throw new AccessAlreadyGrantedError(_id, list);
+    }
+    await this.sharedResources.updateOneGeneral({ resource: _id }, { $addToSet: { listsWithAccess: list } });
+    return { msg: "Successfully added access!" };
+  }
+
+  async removeUserAccess(_id: ObjectId, user: ObjectId) {
+    _id = new ObjectId(_id);
+    await this.isNotOwner(user, _id);
+    const sharedResource = await this.sharedResources.readOne({ resource: _id });
+    if (sharedResource === null) {
+      throw new SharedResourceNotFoundError(_id);
+    }
+    if (!includes(sharedResource.usersWithAccess, user)) {
       throw new AccessDoesNotExistError(_id, user);
     }
-    await this.sharedResources.updateOneGeneral({ resource: _id }, { $pull: { withAccess: user } });
+    await this.sharedResources.updateOneGeneral({ resource: _id }, { $pull: { usersWithAccess: user } });
+    return { msg: "Successfully removed access!" };
+  }
+
+  async removeListAccess(_id: ObjectId, list: ObjectId) {
+    _id = new ObjectId(_id);
+    const sharedResource = await this.sharedResources.readOne({ resource: _id });
+    if (sharedResource === null) {
+      throw new SharedResourceNotFoundError(_id);
+    }
+    if (!includes(sharedResource.listsWithAccess, list)) {
+      throw new AccessDoesNotExistError(_id, list);
+    }
+    await this.sharedResources.updateOneGeneral({ resource: _id }, { $pull: { listsWithAccess: list } });
     return { msg: "Successfully removed access!" };
   }
 
@@ -104,17 +132,17 @@ export default class SharingConcept {
     return await this.sharedResources.readMany(filter);
   }
 
-  async getResourcesByAccessible(accessList: Array<ObjectId>) {
-    return await this.sharedResources.readMany({ withAccess: { $in: accessList } });
+  async getResourcesByAccessible(user: ObjectId, lists: Array<ObjectId>) {
+    return await this.sharedResources.readMany({ $or: [{ usersWithAccess: user }, { listsWithAccess: { $in: lists } }] });
   }
 
   async getResourcesByOwner(user: ObjectId) {
     return await this.sharedResources.readMany({ owner: user });
   }
 
-  async isAccessible(resource: ObjectId, targets: Array<ObjectId>) {
+  async isAccessible(resource: ObjectId, user: ObjectId, lists: Array<ObjectId>) {
     const resourceId = new ObjectId(resource);
-    const result = await this.sharedResources.readOne({ resource: resourceId, withAccess: { $in: targets } });
+    const result = await this.sharedResources.readOne({ resource: resourceId, $or: [{ usersWithAccess: user }, { listsWithAccess: { $in: lists } }] });
     if (result === null) {
       throw new NotAllowedError(`Can not access Sharing object with resource ID ${resource}`);
     }
@@ -128,6 +156,17 @@ export default class SharingConcept {
     }
     if (!includes(sharedResource.owners, user)) {
       throw new ResourceOwnerNotMatchError(user, _id);
+    }
+  }
+
+  private async isNotOwner(user: ObjectId, _id: ObjectId) {
+    _id = new ObjectId(_id);
+    const sharedResource = await this.sharedResources.readOne({ resource: _id });
+    if (!sharedResource) {
+      throw new SharedResourceNotFoundError(_id);
+    }
+    if (includes(sharedResource.owners, user)) {
+      throw new NotAllowedError(`${user} is an owner of of resource ${_id}`);
     }
   }
 }
@@ -149,7 +188,7 @@ export class AccessAlreadyGrantedError extends NotAllowedError {
     public readonly _id: ObjectId,
     public readonly user: ObjectId,
   ) {
-    super("User {0} already has access to resource {1}!", user, _id);
+    super("User or UserList {0} already has access to resource {1}!", user, _id);
   }
 }
 
@@ -167,7 +206,7 @@ export class AccessDoesNotExistError extends NotAllowedError {
     public readonly _id: ObjectId,
     public readonly user: ObjectId,
   ) {
-    super("User {0} does not have access to resource {1}!", user, _id);
+    super("User or UserList {0} does not have access to resource {1}!", user, _id);
   }
 }
 
