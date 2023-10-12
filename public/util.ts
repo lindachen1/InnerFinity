@@ -81,7 +81,7 @@ const operations: operation[] = [
     name: "Create Post (Y/N for allowRequests)",
     endpoint: "/api/posts",
     method: "POST",
-    fields: { content: "input", authors: "json", allowRequests: "input", shareWithUsers: "json", shareWithLists: "json" },
+    fields: { imageURL: "input", caption: "input", altText: "input", authors: "json", allowRequests: "input", shareWithUsers: "json", shareWithLists: "json" },
   },
   {
     name: "Approve Group Post",

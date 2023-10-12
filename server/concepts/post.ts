@@ -6,12 +6,12 @@ import { NotAllowedError, NotFoundError } from "./errors";
 
 export interface PostDoc extends BaseDoc {
   authors: Array<ObjectId>;
-  content: string;
+  content: ObjectId;
 }
 
 export interface PendingPostDoc extends BaseDoc {
   authors: Array<ObjectId>;
-  content: string;
+  content: ObjectId;
   requiresApproval: Array<ObjectId>;
 }
 
@@ -19,7 +19,7 @@ export default class PostConcept {
   public readonly pendingPosts = new DocCollection<PendingPostDoc>("pendingPosts");
   public readonly publishedPosts = new DocCollection<PostDoc>("publishedPosts");
 
-  async create(authors: Array<ObjectId>, content: string) {
+  async create(authors: Array<ObjectId>, content: ObjectId) {
     const requiresApproval = authors.length === 1 ? [] : authors;
     const _id = await this.pendingPosts.createOne({ authors, content, requiresApproval });
     return await this.publish(_id);
@@ -68,7 +68,7 @@ export default class PostConcept {
     return posts;
   }
 
-  async getPosts(query: Filter<PostDoc>) {
+  async getPublishedPosts(query: Filter<PostDoc>) {
     const posts = await this.publishedPosts.readMany(query, {
       sort: { dateUpdated: -1 },
     });
@@ -79,19 +79,25 @@ export default class PostConcept {
     return (await this.publishedPosts.readOne({ _id }))?.authors;
   }
 
-  async getByAuthor(author: ObjectId) {
-    return await this.getPosts({ author: author });
+  async getPublishedByAuthor(author: ObjectId) {
+    return await this.getPublishedPosts({ authors: author });
+  }
+
+  async toBeDeleted(author: ObjectId) {
+    const published = await this.publishedPosts.readMany({ authors: [author] });
+    const pending = await this.pendingPosts.readMany({ authors: [author] });
+    return published.concat(pending);
   }
 
   async delete(_id: ObjectId) {
-    let result = await this.publishedPosts.deleteOne({ _id });
-    if (result.deletedCount === 0) {
-      result = await this.pendingPosts.deleteOne({ _id });
+    let result = await this.publishedPosts.popOne({ _id });
+    if (result === null) {
+      result = await this.pendingPosts.popOne({ _id });
     }
-    if (result.deletedCount === 0) {
+    if (result === null) {
       throw new PostNotFoundError(_id);
     }
-    return { msg: "Post deleted successfully!" };
+    return { msg: "Post deleted successfully!", deletedPost: result };
   }
 
   async deleteMany(filter: Filter<PostDoc>) {
@@ -115,6 +121,13 @@ export default class PostConcept {
     }
     if (!includes(post.authors, user)) {
       throw new PostAuthorNotMatchError(user, _id);
+    }
+  }
+
+  async isPublished(_id: ObjectId) {
+    const post = await this.publishedPosts.readOne({ _id });
+    if (!post) {
+      throw new NotAllowedError(`Post ${_id} is not published`);
     }
   }
 }

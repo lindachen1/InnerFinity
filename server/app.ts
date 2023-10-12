@@ -1,5 +1,6 @@
 import CommentConcept from "./concepts/comment";
 import FriendConcept from "./concepts/friend";
+import MediaConcept from "./concepts/media";
 import PostConcept from "./concepts/post";
 import SharingConcept from "./concepts/sharing";
 import UserConcept from "./concepts/user";
@@ -15,3 +16,4 @@ export const Friend = new FriendConcept();
 export const UserList = new UserListConcept();
 export const PostSharing = new SharingConcept("postSharing");
 export const CommentSharing = new SharingConcept("commentSharing");
+export const PostMedia = new MediaConcept("postMedia");

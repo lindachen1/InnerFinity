@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { Router, getExpressRouter } from "./framework/router";
 
-import { Comment, CommentSharing, Friend, Post, PostSharing, User, UserList, WebSession } from "./app";
+import { Comment, CommentSharing, Friend, Post, PostMedia, PostSharing, User, UserList, WebSession } from "./app";
 import { UserDoc } from "./concepts/user";
 import { WebSessionDoc } from "./concepts/websession";
 import { includes } from "./framework/utils";
@@ -58,9 +58,10 @@ class Routes {
     // Delete user's UserLists
     await UserList.deleteMany({ creator: user });
 
-    // Delete comments under posts that will be deleted
-    const deletedPosts = await Post.getByAuthor(user);
+    // Delete media and comments under posts that will be deleted
+    const deletedPosts = await Post.toBeDeleted(user);
     for (const post of deletedPosts) {
+      await PostMedia.delete(post.content);
       await deleteCommentsUnderPost(post._id);
     }
 
@@ -92,9 +93,9 @@ class Routes {
     let posts;
     if (author) {
       const id = (await User.getUserByUsername(author))._id;
-      posts = await Post.getByAuthor(id);
+      posts = await Post.getPublishedByAuthor(id);
     } else {
-      posts = await Post.getPosts({});
+      posts = await Post.getPublishedPosts({});
     }
     return Responses.posts(posts);
   }
@@ -111,7 +112,7 @@ class Routes {
     const accessList = await getAccessList(user);
     const resources = await PostSharing.getResourcesByAccessible(accessList);
     const postIDs = resources.map((record) => record.resource);
-    const posts = await Post.getPosts({ _id: { $in: postIDs } });
+    const posts = await Post.getPublishedPosts({ _id: { $in: postIDs } });
     return Responses.posts(posts);
   }
 
@@ -122,12 +123,22 @@ class Routes {
   }
 
   @Router.post("/posts")
-  async createPost(session: WebSessionDoc, content: string, authors: Array<string>, allowRequests: string, shareWithUsers: Array<string>, shareWithLists: Array<string>) {
+  async createPost(
+    session: WebSessionDoc,
+    imageURL: string,
+    caption: string,
+    altText: string,
+    authors: Array<string>,
+    allowRequests: string,
+    shareWithUsers: Array<string>,
+    shareWithLists: Array<string>,
+  ) {
     const user = WebSession.getUser(session);
     const authorIds = await User.usernamesToIds(authors);
     if (!includes(authorIds, user)) {
       authorIds.push(user);
     }
+    const content = await PostMedia.create(imageURL, caption, altText);
     const created = await Post.create(authorIds, content);
     const shareWithIds = await combinedAccessList(user, shareWithUsers, shareWithLists);
     await PostSharing.limitSharing(authorIds, created.post!._id, allowRequests === "Y", shareWithIds);
@@ -159,7 +170,9 @@ class Routes {
     await Post.isAuthor(user, _id);
     await PostSharing.deleteByResourceId(_id);
     await deleteCommentsUnderPost(_id);
-    return Post.delete(_id);
+    const post = await Post.delete(_id);
+    await PostMedia.delete(post.deletedPost.content);
+    return post;
   }
 
   @Router.get("/sharing/comments")
@@ -173,6 +186,7 @@ class Routes {
     const author = WebSession.getUser(session);
     const accessList = await getAccessList(author);
     await PostSharing.isAccessible(_id, accessList);
+    await Post.isPublished(_id);
     const comment = await Comment.create(author, content, _id);
     const withAccess = await combinedAccessList(author, shareWithUsers, shareWithLists);
     const postAuthors = (await Post.getAuthors(_id)) ?? [];

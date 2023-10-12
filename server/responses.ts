@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { User, UserList } from "./app";
+import { PostMedia, User, UserList } from "./app";
 import { AlreadyFriendsError, FriendNotFoundError, FriendRequestAlreadyExistsError, FriendRequestDoc, FriendRequestNotFoundError } from "./concepts/friend";
 import { PostAuthorNotMatchError, PostDoc } from "./concepts/post";
 import { SharingDoc } from "./concepts/sharing";
@@ -19,7 +19,8 @@ export default class Responses {
       return post;
     }
     const authors = await User.idsToUsernames(post.authors);
-    return { ...post, authors: authors };
+    const content = await PostMedia.getMedia(post.content);
+    return { ...post, content: content, authors: authors };
   }
 
   /**
@@ -27,7 +28,8 @@ export default class Responses {
    */
   static async posts(posts: PostDoc[]) {
     const authors = await Promise.all(posts.map((post) => User.idsToUsernames(post.authors)));
-    return posts.map((post, i) => ({ ...post, authors: authors[i] }));
+    const contents = await Promise.all(posts.map((post) => PostMedia.getMedia(post.content)));
+    return posts.map((post, i) => ({ ...post, content: contents[i], authors: authors[i] }));
   }
 
   /**
